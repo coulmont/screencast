@@ -1,0 +1,92 @@
+---
+title: "Prénoms parisiens"
+author: "Baptiste Coulmont"
+date: "5/31/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(stringi)
+
+prenoms <- read_csv2("https://opendata.paris.fr/explore/dataset/liste_des_prenoms/download/?format=csv&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")
+
+prenoms
+
+prenoms %>% count(Prenoms,sort=TRUE)
+
+prenoms %>% group_by(Prenoms) %>% summarize(Total = sum(Nombre)) %>% arrange(-Total)
+
+prenoms %>% filter(grepl("Chlo",Prenoms))
+
+# on enleve les accents et on garde la forme ASCII sans accent : é-->e
+prenoms <- prenoms %>%
+  mutate(prenom = stri_trans_general(Prenoms,"Latin-ASCII"))
+  
+prenoms <- prenoms %>%
+  group_by(Sexe,Annee,prenom) %>%
+  summarize(Total = sum(Nombre)) %>%
+  ungroup()
+
+
+
+```
+
+
+```{r}
+
+prenoms %>%
+  filter(prenom == "Raphael") %>%
+  ggplot(aes(x=Annee, y= Total)) +
+  geom_point()
+
+prenoms %>%
+  filter(prenom == "Louise") %>%
+  ggplot(aes(x=Annee, y= Total)) +
+  geom_point() +
+  labs(title = "Nombre de bébés nés à Paris s'appelant Louise",
+       subtitle = "2004-2019",
+       caption = "Source : Opendata.paris.fr")
+
+```
+
+# Les prénoms mixtes ?
+
+```{r}
+
+prenoms_mixtes <- prenoms %>%
+  group_by(prenom,Annee) %>%
+  summarize(categorie_sexe = n()) %>%
+  arrange(-categorie_sexe) %>% filter(categorie_sexe==2) %>% distinct(prenom)
+
+prenoms %>% filter(prenom %in% prenoms_mixtes$prenom) %>%
+  group_by(prenom,Sexe) %>%
+  summarize(Total = sum(Total)) %>%
+  pivot_wider(names_from = Sexe, values_from = Total) %>%
+  mutate(proportion_garcons = M/(F+M))
+  
+```
+
+## Charlie et Camille
+
+```{r}
+
+prenoms %>% 
+  filter(prenom %in% prenoms_mixtes$prenom) %>%
+  filter(prenom %in% c("Charlie","Camille")) %>%
+  group_by(Annee,prenom,Sexe) %>%
+  summarize(Total = sum(Total)) %>%
+  pivot_wider(names_from = Sexe, values_from = Total) %>%
+  mutate(proportion_garcons = M/(F+M)) %>%
+  ggplot(aes(x = Annee, y= proportion_garcons, color=prenom)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Proportion de garçons parmi les bébés s'appelant Camille ou Charlie",
+       subtitle = "Les bébés Camille nés en 2019 sont en majorité des garçons",
+       caption = "source : opendata.paris.fr")
+ 
+```
+
+
